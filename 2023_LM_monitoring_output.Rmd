@@ -1,0 +1,138 @@
+---
+title: "Land Matrix monitoring"
+author: "Accountability"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  include = FALSE,
+  comment = ''
+)
+```
+
+# Notes
+
+## What is it for?
+
+Pull data from Land Matrix (using GraphQL) and apply a few filters + tests to assess data availability and quality.
+
+## How do I use it?
+
+- [Add GitHub repo for the R script]
+- For more detail on how the filters work, use the documentation (available on the GitHub)
+- Use the comments in the code to edit the filters if needed (always use "custom" parameters and not "default" parameters)
+
+…
+
+---
+
+# Pull and filter data from landmatrix.org
+
+```{r Load libraries}
+# Load libraries
+library(ghql)       # GraphQL client
+library(jsonlite)   # Work with JSON objects in R
+library(dplyr)
+library(tibble)
+library(knitr)      # Render nice tables in markdown
+library(DT)         # Render interactive tables
+```
+
+```{r Init client}
+########## INIT GRAPHQL CLIENT ##########
+
+# Link to the Land Matrix GraphQL API
+link <- 'https://landmatrix.org/graphql/'
+
+# Create a new graphqlClient connection object
+conn <- GraphqlClient$new(url = link)
+
+```
+
+```{r Filters, echo = TRUE}
+# Land Matrix filters
+filters <- list(
+  #list( field = "id", operation = "IN", value = c(14, 15, 16, 18, 20) ),
+  list( field = "country.region.id", operation = "EQ", value = 2 ),
+  list( field = "country.id", operation = "EQ", value = 710 ),
+  list( field = "initiation_year", operation = "GE", value = 2000, allow_null = TRUE )
+)
+```
+
+```{r Fields and variables}
+# GraphQL query string with variables and Land Matrix fields to query
+query_string <- '
+  query(
+    $sort: String
+    $limit: Int
+    $filters: [Filter]
+    ){
+    deals(
+      sort: $sort
+      limit: $limit
+      filters: $filters
+    ){
+      id
+      country {id, name}
+      deal_size
+      initiation_year
+    }
+  }
+'
+
+# Variables
+variables <- list(
+  sort = "id",
+  limit = 6,
+  filters = filters
+)
+```
+
+```{r Query results}
+
+# Use the ghql class to define the query object
+query <- Query$new()$query('link', query_string)
+
+# Make the request, pass the query and then the variables. Then convert
+# the raw object to a structure JSON object.
+result <- conn$exec(query$link, variables = variables) %>%
+  fromJSON(flatten = T)
+
+# Convert the JSON data into a tibble
+deals_data <- result$data$deals %>%
+  as_tibble()
+deals_data
+
+```
+
+Inspect the schema:
+
+```{r echo=FALSE, include=TRUE}
+query$link
+```
+
+List of filters:
+```{r include=TRUE}
+# Create vectors to store data in and turn into filters later
+c_fields <- c()
+c_operations <- c()
+c_values <- c()
+
+# Loop over the filters to create tibble rows
+for (f in filters) {
+  c_fields <- c(c_fields, f$field)
+  c_operations <- c(c_operations, f$operation)
+  c_values <- c(c_values, f$value)
+}
+
+# Write all filters in a tibble
+filters_table <- tibble(c_fields, c_operations, c_values) %>%
+  rename(Field = c_fields, Operation = c_operations, Value = c_values)
+kable(filters_table)
+
+```

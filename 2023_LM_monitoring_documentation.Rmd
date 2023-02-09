@@ -1,0 +1,376 @@
+---
+title: "LM monitoring documentation"
+author: "Accountability"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  include = FALSE,
+  comment = ''
+)
+```
+
+```{r Global variables}
+playground <- 'https://landmatrix.org/graphql/'
+contact <- 'accountability@landmatrix.org'
+```
+
+```{r Load libraries}
+# Load libraries
+library(ghql)       # GraphQL client
+library(jsonlite)   # Work with JSON objects in R
+library(dplyr)
+library(tibble)
+library(knitr)      # Render nice tables in markdown
+library(DT)         # Render interactive tables
+```
+
+```{r Init client}
+########## INIT GRAPHQL CLIENT ##########
+
+# Link to the Land Matrix GraphQL API
+link <- 'https://landmatrix.org/graphql/'
+
+# Create a new graphqlClient connection object
+conn <- GraphqlClient$new(url = link)
+
+```
+
+```{r Query regions}
+# GraphQL query string with variables and Land Matrix fields to query
+query_string_regions <- '
+  query {
+    regions {
+      id
+      name
+    }
+  }
+'
+
+# Use the ghql class to define the query object
+query_regions <- Query$new()$query('link', query_string_regions)
+
+# Make the request, pass the query and then the variables. Then convert
+# the raw object to a structure JSON object.
+regions <- conn$exec(query_regions$link) %>%
+  fromJSON(flatten = T)
+regions <- regions$data$regions
+regions
+
+```
+
+```{r Query countries}
+# GraphQL query string with variables and Land Matrix fields to query
+query_string_countries <- '
+  query {
+    countries {
+      id
+      name
+      region {id name}
+    }
+  }
+'
+
+# Use the ghql class to define the query object
+query_countries <- Query$new()$query('link', query_string_countries)
+
+# Make the request, pass the query and then the variables. Then convert
+# the raw object to a structure JSON object.
+countries <- conn$exec(query_countries$link) %>%
+  fromJSON(flatten = T)
+countries <- countries$data$countries
+countries
+
+```
+
+```{r Query formfields}
+# GraphQL query string with variables and Land Matrix fields to query
+query_string_formfields <- '
+  query( $language: String ){
+    formfields( language: $language ){
+      deal
+    }
+  }
+'
+
+# Variables
+variables_formfields <- list(
+  language = "en"
+)
+
+# Use the ghql class to define the query object
+query_formfields <- Query$new()$query('link', query_string_formfields)
+
+# Make the request, pass the query and then the variables. Then convert
+# the raw object to a structure JSON object.
+formfields <- conn$exec(query_formfields$link, variables = variables_formfields) %>%
+  fromJSON(flatten = F)
+
+deal_formfields <- formfields$data$formfields$deal
+
+```
+
+# Documentation
+
+## What is a query?
+A query is what you send to landmatrix.org to tell it what data you need. Land Matrix uses GraphQL. It has a playground for testing your queries and explore the documentation here: `r playground`. For example, if you want to query all deals from Kazakhstan (ID = 398) and get information on the deal ID, country and deal size, you must write the following query:
+
+```{.javascript}
+query {
+  deals (
+    filters: [
+      { field: "country.id", operation: EQ, value: 398 }
+    ]
+  ){
+    id
+    country {id, name}
+    deal_size
+  }
+}
+```
+
+- `deals` tells GraphQL you want to query deals
+- `filters` is a list of all filters we want to apply to our query. Here we want to country ID to be equal to 398, the ID of Kazakhstan.
+- `id`, `country {id, name}` and `deal_size` are the fields we want to retrieve from the database.
+  - `id` is the ID of the deal
+  - `country {id, name}` is an object with the ID and the name of the country
+  - `deal_size` is the size of the deal in ha
+  
+We will break down how to write queries in the documentation. We will focus on querying deals but the same method can be applied to query countries, for example. You will find all the documentation on the filters and fields at `r playground`. If you need help with writing queries in the playground or translating them to R, email me at `r contact`.
+
+**In general, we advise you to first test your query on the playground and then translate it to R.**
+
+## How to add fields to my query?
+All available fields can be found at `r playground` under `Docs > deals(…): Deal`. The most commonly used fields are:
+
+```{r include=TRUE}
+tibble(
+  Field = c("id", "country {id, name}", "deal_size"),
+  Description = c("ID of the deal", "ID and name of the country", "Size of the deal")
+) %>% kable()
+```
+
+Here is where to add a field:
+```{.javascript}
+query {
+  deals (
+    filters: [
+      { field: "country.id", operation: EQ, value: 398 }
+    ]
+  ){
+    id
+    country {id, name}
+    deal_size
+    // Add one field here
+    // Add another field here
+    // Etc.
+  }
+}
+```
+
+Find more fields under the **Fields and associated filters** section.
+
+## How to write a filter?
+A filter consists in a **[field](#fields_filters)**, an **[operator](#operators)** and one or more **[values](#fields_filters)**. In the GraphQL playground, filters are written like so:
+
+```{.javascript}
+{ field: "…", operation: …, value: … }
+```
+
+```{.javascript}
+// If the value is a number, e.g. 1
+value: 1
+
+// If the value is a string, e.g. "LEASE"
+value: "LEASE"
+
+// If the value is an array of numbers, e.g. 1, 2 and 3
+value: [1, 2, 3]
+
+// If the value is an array of strings, e.g. "LEASE", "CONCESSION" and "EXPLOITATION_PERMIT"
+value: ["LEASE", "CONCESSION", "EXPLOITATION_PERMIT]
+
+```
+
+In R, it is written like so:
+
+```{.r}
+list( field = "…", operation = "…", value = … )
+```
+
+```{.r}
+# If the value is a number, e.g. 1
+value = 1
+
+# If the value is a string, e.g. "LEASE"
+value = "LEASE"
+
+# If the value is an array of numbers, e.g. 1, 2 and 3
+value = c(1, 2, 3)
+
+# If the value is an array of strings, e.g. "LEASE", "CONCESSION" and "EXPLOITATION_PERMIT"
+value = c("LEASE", "CONCESSION", "EXPLOITATION_PERMIT)
+```
+
+To know if your value needs to be a number, a string, an array of numbers or an array of strings, read about [operators](#operators) and [filters associated to each field](#fields_filters).
+
+## Logical operators {#operators}
+The available logical operators are:
+
+```{r include=TRUE}
+tibble(
+  Operator = c("EQ", "IN", "CONTAINS", "CONTAINED_BY", "LT", "LE", "GT", "GE"),
+  Description = c("equals", "in/part of", "contains", "is contained by", "less than", "less or equal than", "greater than", "greater or equal than"),
+  "Value type" = c("number or string", "number or string", "array of numbers or strings", "array of numbers or strings", "number", "number", "number", "number")
+) %>% kable()
+```
+
+Examples in JS:
+
+```{.javascript}
+// Deal with ID = 8489
+{ field: "id", operation: EQ, value: 8489 }
+
+// Deals with size greater than 200 ha
+{ field: "deal_size", operation: GE, value: "200" }
+
+// Deals with nature of deal as lease or concession
+{ field: "nature_of_deal", operation: IN, value: ["LEASE", "CONCESSION"] }
+```
+
+Examples in R:
+
+```{.r}
+# Deal with ID = 8489
+list( field = "id", operation = "EQ", value = 8489 )
+
+# Deals with size greater than 200 ha
+list( field = "deal_size", operation = "GE", value = 200 )
+
+# Deals with nature of deal as lease or concession
+list( field = "nature_of_deal", operation = "IN", value = c("LEASE", "CONCESSION") )
+```
+
+## Fields and associated filters {#fields_filters}
+List of main fields available in Land Matrix and how to filter them.
+
+### LM Region
+
+Field = `country.region.id`
+
+```{r include = T}
+regions %>% kable()
+```
+
+Filter example in R: query deals from Africa
+
+```{.r}
+list( field = "country.region.id", operation = "EQ", value = 2 )
+```
+
+### Country
+
+Field = `country.id`
+
+```{r include = T}
+countries %>% datatable(colnames = c("id", "name", "region id", "region name"))
+```
+
+Filter example in R: query deals from Brazil (ID = 76) and Argentina (ID = 32)
+```{.r}
+list( field = "country.id", operation = "IN", value = c(76, 32) )
+```
+
+### Deal size
+
+Field = `deal_size`
+
+Filter example in R: query deals of 200 ha or more and smaller than 800 ha (done with a combination of two filters)
+```{.r}
+list( field = "deal_size", operation = "GE", value = 200 ),
+list( field = "deal_size", operation = "LT", value = 800 )
+```
+
+### Negotiation status
+
+```{r include = T}
+negotiation_status_choices <- deal_formfields$current_negotiation_status$choices
+tmp_values <- names(negotiation_status_choices) # Get all values
+tmp_description <- unlist(negotiation_status_choices, use.names = FALSE) # Get all values meaning
+
+tibble(tmp_values, tmp_description) %>%
+  rename(Value = tmp_values, Description = tmp_description) %>%
+  kable()
+
+```
+
+Filter example in R: query deals with negotiation status either oral agreement or contract signed
+```{.r}
+list( field = "current_negotiation_status", operation = "IN", value = c("ORAL_AGREEMENT", "CONTRACT_SIGNED") )
+```
+
+### Nature of deal
+
+```{r include = T}
+nature_of_deal_choices <- deal_formfields$nature_of_deal$choices
+tmp_values <- names(nature_of_deal_choices) # Get all values
+tmp_description <- unlist(nature_of_deal_choices, use.names = FALSE) # Get all values meaning
+
+tibble(tmp_values, tmp_description) %>%
+  rename(Value = tmp_values, Description = tmp_description) %>%
+  kable()
+
+```
+
+Filter example in R: query deals with AT LEAST nature of deal lease, outright purchase AND/OR concession
+```{.r}
+list( field = "nature_of_deal", operation = "CONTAINS", value = c("LEASE", "OUTRIGHT_PURCHASE", "CONCESSION") )
+```
+
+Filter example in R: query deals with ONLY nature of deal lease, outright purchase AND/OR concession
+```{.r}
+list( field = "nature_of_deal", operation = "CONTAINED_BY", value = c("LEASE", "OUTRIGHT_PURCHASE", "CONCESSION) )
+```
+
+### Year of initiation
+
+Field = `initiation_year`
+
+Filter example in R: query deals from 2000 or later, include deals with unknown initiation year
+```{.r}
+list( field = "initiation_year", operation = "GE", value = 2000, allow_null = TRUE )
+```
+
+### Intention of investment
+
+Field = `current_intention_of_investment`
+
+```{r include = T}
+intention_of_investment_choices <- deal_formfields$current_intention_of_investment$choices
+tmp_values <- names(intention_of_investment_choices) # Get all values
+tmp_description <- unlist(intention_of_investment_choices, use.names = FALSE) # Get all values meaning
+
+tibble(tmp_values, tmp_description) %>%
+  rename(Value = tmp_values, Description = tmp_description) %>%
+  kable()
+
+```
+
+Filter example in R: query deals with AT LEAST intention of investment food_crops AND/OR livestock
+```{.r}
+list( field = "current_intention_of_investment", operation = "CONTAINS", value = c("FOOD_CROPS", "LIVESTOCK") )
+```
+
+Filter example in R: query deals with ONLY intention of investment food_crops AND/OR livestock
+```{.r}
+list( field = "current_intention_of_investment", operation = "CONTAINED_BY", value = c("FOOD_CROPS", "LIVESTOCK") )
+```
+
+### Transnational
