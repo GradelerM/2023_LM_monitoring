@@ -336,7 +336,7 @@ list( field = "nature_of_deal", operation = "CONTAINS", value = c("LEASE", "OUTR
 
 Filter example in R: query deals with ONLY nature of deal lease, outright purchase AND/OR concession
 ```{.r}
-list( field = "nature_of_deal", operation = "CONTAINED_BY", value = c("LEASE", "OUTRIGHT_PURCHASE", "CONCESSION) )
+list( field = "nature_of_deal", operation = "CONTAINED_BY", value = c("LEASE", "OUTRIGHT_PURCHASE", "CONCESSION") )
 ```
 
 ### Year of initiation
