@@ -3,8 +3,8 @@ title: "LM monitoring documentation"
 author: "Accountability"
 date: "`r Sys.Date()`"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -120,7 +120,7 @@ deal_formfields <- formfields$data$formfields$deal
 # Documentation
 
 ## What is a query?
-A query is what you send to landmatrix.org to tell it what data you need. Land Matrix uses GraphQL. It has a playground for testing your queries and explore the documentation here: `r playground`. For example, if you want to query all deals from Kazakhstan (ID = 398) and get information on the deal ID, country and deal size, you must write the following query:
+A query is what you send to landmatrix.org to tell it what data you need. Land Matrix uses GraphQL. It has a playground to test your queries and explore the documentation here: `r playground`. For example, if you want to query all deals from Kazakhstan (ID = 398) and get information on the deal ID, country and deal size, you must write the following query:
 
 ```{.javascript}
 query {
@@ -374,3 +374,10 @@ list( field = "current_intention_of_investment", operation = "CONTAINED_BY", val
 ```
 
 ### Transnational
+
+Field = `transnational`
+
+Filter example in R: query transnational deals
+```{.r}
+list( field = "transnational", operation = "EQ", value = TRUE )
+```
