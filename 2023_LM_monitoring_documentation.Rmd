@@ -381,3 +381,12 @@ Filter example in R: query transnational deals
 ```{.r}
 list( field = "transnational", operation = "EQ", value = TRUE )
 ```
+
+### Forest concession
+
+Field = `forest_concession`
+
+Filter example in R: query deals that are not forest concessions
+```{.r}
+list( field = "forest_concession", operation = "EQ", value = FALSE )
+```
