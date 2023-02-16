@@ -226,9 +226,9 @@ The available logical operators are:
 
 ```{r include=TRUE}
 tibble(
-  Operator = c("EQ", "IN", "CONTAINS", "CONTAINED_BY", "LT", "LE", "GT", "GE"),
-  Description = c("equals", "in/part of", "contains", "is contained by", "less than", "less or equal than", "greater than", "greater or equal than"),
-  "Value type" = c("number or string", "number or string", "array of numbers or strings", "array of numbers or strings", "number", "number", "number", "number")
+  Operator = c("EQ", "IN", "CONTAINS", "CONTAINED_BY", "OVERLAP", "LT", "LE", "GT", "GE"),
+  Description = c("equals", "in/part of", "contains all values, can contain more*", "contains at least one value, nothing else than the values*", "contains at least one value, can contain more*", "less than", "less or equal than", "greater than", "greater or equal than"),
+  "Value type" = c("number or string", "number or string", "array of numbers or strings", "array of numbers or strings", "array of numbers or strings", "number", "number", "number", "number")
 ) %>% kable()
 ```
 
@@ -257,6 +257,59 @@ list( field = "deal_size", operation = "GE", value = 200 )
 # Deals with nature of deal as lease or concession
 list( field = "nature_of_deal", operation = "IN", value = c("LEASE", "CONCESSION") )
 ```
+
+### Contains, Contained by and Overlap
+Let's take 5 example deals with the following intentions of investment.
+
+```{.json}
+"deal": {
+  "id": 1,
+  "current_intention_of_investment": { "BIOFUELS" }
+}
+
+"deal": {
+  "id": 2,
+  "current_intention_of_investment": { "FOOD_CROPS" }
+}
+
+"deal": {
+  "id": 3,
+  "current_intention_of_investment": { "RENEWABLE_ENERGY" }
+}
+
+"deal": {
+  "id": 4,
+  "current_intention_of_investment": { "BIOFUELS", "FOOD_CROPS" }
+}
+
+"deal": {
+  "id": 5,
+  "current_intention_of_investment": { "BIOFUELS", "FOOD_CROPS", "RENEWABLE_ENERGY"  }
+}
+```
+
+I apply the following operations to the field `current_intention_of_investment` and the value `["BIOFUELS", "FOOD_CROPS"]`.
+
+- `CONTAINS`: I want all deals that contain at least `BIOFUELS` AND `FOOD_CROPS`.
+  - Deal 1 is excluded because it only contains biofuels.
+  - Deal 2 is excluded because it only contains food crops.
+  - Deal 3 is excluded because it doesn't contain biofuels and food crops.
+  - Deal 4 is **retained** because it contains biofuels and food crops.
+  - Deal 5 is **retained** because it contains biofuels and food crops. Additional intentions of investment don't exclude it.
+
+- `CONTAINED_BY`: I want all deals that contain `BIOFUELS` AND/OR `FOOD_CROPS` but NOTHING ELSE.
+  - Deal 1 is **retained** because it contains biofuels and nothing else than biofuels and food crops.
+  - Deal 2 is **retained** because it contains food crops and nothing else than biofuels and food crops.
+  - Deal 3 is excluded because it contains something else than biofuels and food crops.
+  - Deal 4 is **retained** because it contains biofuel, food crops and nothing else.
+  - Deal 5 is excluded because it contains something else than biofuels.
+  
+- `OVERLAP`: I want all deals that contain AT LEAST `BIOFUELS` AND/OR `FOOD_CROPS`.
+  - Deal 1 is **retained** because it contains biofuels
+  - Deal 2 is **retained** because it contains food crops
+  - Deal 3 is excluded because it doesn't contain biofuels or food crops
+  - Deal 4 is **retained** because it contains biofuels and food crops
+  - Deal 5 is **retained** because it contains biofuels and food crops. Additional intentions of investment don't exclude it.
 
 ## Fields and associated filters {#fields_filters}
 List of main fields available in Land Matrix and how to filter them.

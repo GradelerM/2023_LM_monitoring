@@ -41,6 +41,14 @@ library(dplyr)
 library(tibble)
 library(knitr)      # Render nice tables in markdown
 library(DT)         # Render interactive tables
+library(ggplot2)
+library(visdat)
+library(naniar)
+```
+
+``` {r globalVar}
+# ========== GLOBAL VARIABLES ==========
+last_modification_limit <- 2021;  # Must be a year. If older, the deal has to be updated.
 ```
 
 ```{r Init client}
@@ -55,13 +63,51 @@ conn <- GraphqlClient$new(url = link)
 ```
 
 ```{r Filters, echo = TRUE}
-# Land Matrix filters
+########## LAND MATRIX VGGTS FILTERS ##########
+# WARNING → trailing commas at the end of the last filter make the query fail
+
 filters <- list(
+  # Deals
   #list( field = "id", operation = "IN", value = c(14, 15, 16, 18, 20) ),
+  
+  # Region
   list( field = "country.region.id", operation = "EQ", value = 2 ),
-  list( field = "country.id", operation = "EQ", value = 710 ),
-  list( field = "initiation_year", operation = "GE", value = 2000, allow_null = TRUE )
+  
+  # Country
+  #list( field = "country.id", operation = "EQ", value = 686 ),
+  
+  # Deal size → at least 200 ha
+  list( field = "deal_size", operation = "GE", value = 200 ),
+  
+  # Negotiation status → Concluded only (oral agreement, contract signed or change of ownership)
+  list( field = "current_negotiation_status", 
+        operation = "IN", 
+        value = c("ORAL_AGREEMENT", "CONTRACT_SIGNED", "CHANGE_OF_OWNERSHIP") ),
+  
+  # Nature of the deal → outright purchase, lease, concession, exploitation permit, include unknown
+  list( field = "nature_of_deal", 
+        operation = "CONTAINED_BY", 
+        value = c("OUTRIGHT_PURCHASE", "LEASE", "CONCESSION", "EXPLOITATION_PERMIT"),
+        allow_null = TRUE),
+  
+  # Year of initiation → 2000 or later, include unknown
+  list( field = "initiation_year", operation = "GE", value = 2000, allow_null = TRUE ),
+  
+  # Intention of investment → agriculture, forestry
+  list( field = "current_intention_of_investment", 
+        operation = "OVERLAP", 
+        value = c(
+          "BIOFUELS", "FOOD_CROPS", "FODDER", "LIVESTOCK", "NON_FOOD_AGRICULTURE", "AGRICULTURE_UNSPECIFIED",
+          "TIMBER_PLANTATION", "FOREST_LOGGING", "CARBON", "FORESTRY_UNSPECIFIED"
+          )),
+  
+  # Scope → transnational
+  list( field = "transnational", operation = "EQ", value = TRUE )
+  
 )
+
+# Deal 8245 missing → in the platform, nature of deal = other is included by default in the platform 
+
 ```
 
 ```{r Fields and variables}
@@ -79,8 +125,75 @@ query_string <- '
     ){
       id
       country {id, name}
+      
       deal_size
+      current_negotiation_status
+      nature_of_deal
       initiation_year
+      current_intention_of_investment
+      created_at
+      modified_at
+      fully_updated
+      fully_updated_at
+      
+      recognition_status
+      recognition_status_comment
+      
+      displacement_of_people
+      displaced_people
+      displaced_households
+      displaced_people_from_community_land
+      displaced_people_within_community_land
+      displaced_households_from_fields
+      displaced_people_on_completion
+      displacement_of_people_comment
+      
+      community_consultation
+      community_consultation_comment
+      
+      community_reaction
+      community_reaction_comment
+      
+      land_conflicts
+      land_conflicts_comment
+      
+      contract_farming
+      on_the_lease_state
+      on_the_lease
+      off_the_lease_state
+      off_the_lease
+      contract_farming_comment
+      
+      promised_benefits
+      promised_benefits_comment
+      materialized_benefits
+      materialized_benefits_comment
+      
+      negative_impacts
+      negative_impacts_comment
+      
+      promised_compensation
+      
+      promised_compensation
+      received_compensation
+      
+      gender_related_information
+      
+      purchase_price
+      purchase_price_currency { id name }
+      purchase_price_type
+      purchase_price_area
+      purchase_price_comment
+      
+      annual_leasing_fee
+      annual_leasing_fee_currency { id name }
+      annual_leasing_fee_type
+      annual_leasing_fee_area
+      annual_leasing_fee_comment
+      
+      presence_of_organizations
+      
+      involved_actors
     }
   }
 '
@@ -88,7 +201,7 @@ query_string <- '
 # Variables
 variables <- list(
   sort = "id",
-  limit = 6,
+  limit = 100000,
   filters = filters
 )
 ```
@@ -110,7 +223,7 @@ deals_data
 
 ```
 
-Inspect the schema:
+Inspection of the schema sent to Land Matrix:
 
 ```{r echo=FALSE, include=TRUE}
 query$link
@@ -127,7 +240,7 @@ c_values <- c()
 for (f in filters) {
   c_fields <- c(c_fields, f$field)
   c_operations <- c(c_operations, f$operation)
-  c_values <- c(c_values, f$value)
+  c_values <- c(c_values, paste(f$value, collapse=", ")) # paste() + collapse argument turns a vector into a string so all values fit in one column
 }
 
 # Write all filters in a tibble
@@ -136,3 +249,269 @@ filters_table <- tibble(c_fields, c_operations, c_values) %>%
 kable(filters_table)
 
 ```
+
+---
+
+# Results
+
+```{r include=TRUE}
+deals_data %>%
+  select(id, country.name, created_at, modified_at, fully_updated_at) %>%
+  mutate(
+    created_at = format(as.POSIXct(created_at), format="%Y-%m-%d"),
+    modified_at = format(as.POSIXct(created_at), format="%Y-%m-%d"),
+    fully_updated_at = format(as.POSIXct(created_at), format="%Y-%m-%d"),
+  ) %>%
+  datatable(fillContainer = TRUE, 
+            options = list(scrollY = "380px")
+            )
+```
+
+---
+
+# Metrics
+
+## Number of deals, number of countries
+
+## Most recent data
+
+```{r include = TRUE}
+deals_data %>%
+  select(id, country.name, created_at, modified_at, fully_updated, fully_updated_at) %>%
+  mutate(
+    created_at = format(as.POSIXct(created_at), format="%Y-%m-%d"),
+    modified_at = format(as.POSIXct(created_at), format="%Y-%m-%d"),
+    fully_updated_at = format(as.POSIXct(created_at), format="%Y-%m-%d"),
+  ) %>%
+  datatable(fillContainer = TRUE, 
+            options = list(scrollY = "380px")
+            )
+```
+
+```{r include = TRUE, fig.height=40, fig.width=12}
+# fig.height = 10 (regional level) or 24 with 4 columns (global level) or 50 with 4 columns (all countries)
+
+deals_data %>%
+  select(country.name, created_at) %>%
+  mutate(
+    creation_year = format(as.POSIXct(created_at), format="%Y")
+  ) %>%
+  ggplot(aes(x=creation_year)) + geom_bar() +
+  facet_wrap(~country.name,
+             ncol = 3,
+             ) +
+  labs(
+    x="Creation date",
+    y="Number of deals"
+  ) +
+  theme_bw()
+```
+
+## Deals that must be fully updated
+
+This is a list of the deals that have been last modified before `r last_modification_limit`.
+They should be updated (we want data with a full update less than 2 years old).
+
+```{r include = TRUE}
+
+# Get all deals older than last_modification_limit (modified_at)
+deals_data %>%
+  select(id, country.name, fully_updated_at) %>%
+  mutate(year = format(as.POSIXct(fully_updated_at), format="%Y")) %>%
+  mutate(last_full_update = format(as.POSIXct(fully_updated_at), format="%Y-%m-%d")) %>%
+  filter(year < last_modification_limit) %>%
+  arrange(year) %>%
+  select(id, country.name, last_full_update) %>%
+  datatable(fillContainer = TRUE, 
+            options = list(scrollY = "380px")
+            )
+
+```
+
+---
+
+# Transparency
+
+## NAs
+
+```{r include = TRUE, fig.height = 16, fig.width = 8}
+deals_na <- deals_data %>%
+  summarise_all(funs(sum(is.na(.))))
+
+deals_na <- as.data.frame(t(deals_na))
+
+deals_na %>% 
+  rename("Number of NA" = V1) %>%
+  kable()
+
+deals_data %>%
+  gg_miss_var(show_pct = TRUE)
+```
+
+```{r include = TRUE, fig.height = 16, fig.width = 8}
+
+# Fields 1 to 14
+deals_data %>%
+  select(id,
+         
+     # Variable 1
+    recognition_status, recognition_status_comment,
+    
+    # Variable 2
+    displacement_of_people, displaced_people, displaced_households, displaced_people_from_community_land,
+    displaced_people_within_community_land, displaced_households_from_fields, displaced_people_on_completion,
+    displacement_of_people_comment,
+    
+    # Variable 3
+    community_consultation, community_consultation_comment,
+    
+    # Variable 4
+    community_reaction, community_reaction_comment,
+    
+    ) %>%
+  vis_miss()
+
+# Fields 15 to 28
+deals_data %>%
+  select(id,
+
+     # Variable 5
+    land_conflicts, land_conflicts_comment,
+    
+    # Variable 6
+    contract_farming, on_the_lease_state, on_the_lease, off_the_lease_state, off_the_lease, contract_farming_comment,
+    
+    # Variables 7 and 8
+    promised_benefits, promised_benefits_comment,
+    materialized_benefits, materialized_benefits_comment,
+    
+    # Variable 9
+    negative_impacts, negative_impacts_comment,
+         
+    ) %>%
+  vis_miss()
+
+# Fields 29 to 42
+deals_data %>%
+  select(id,
+
+    # Variables 10 and 11
+    promised_compensation,
+    
+    # Variable 11
+    received_compensation,
+    
+    # Variable 12
+    gender_related_information,
+    
+    # Variable 13
+    purchase_price, purchase_price_currency.name, purchase_price_type, purchase_price_area, purchase_price_comment,
+    
+    # Variable 14
+    annual_leasing_fee, annual_leasing_fee_currency.name, annual_leasing_fee_type, annual_leasing_fee_comment,
+    
+    # Variable 15
+    presence_of_organizations,
+    
+    # Variable 16
+    involved_actors
+         
+    ) %>%
+  vis_miss()
+
+```
+```
+
+```{r include = FALSE}
+deals_data %>%
+  select(id,
+         
+    # Variable 1
+    recognition_status, recognition_status_comment,
+    
+    # Variable 2
+    displacement_of_people, displaced_people, displaced_households, displaced_people_from_community_land,
+    displaced_people_within_community_land, displaced_households_from_fields, displaced_people_on_completion,
+    displacement_of_people_comment,
+    
+    # Variable 3
+    community_consultation, community_consultation_comment,
+    
+    # Variable 4
+    community_reaction, community_reaction_comment,
+    
+    # Variable 5
+    land_conflicts, land_conflicts_comment,
+    
+    # Variable 6
+    contract_farming, on_the_lease_state, on_the_lease, off_the_lease_state, off_the_lease, contract_farming_comment,
+    
+    # Variables 7 and 8
+    promised_benefits, promised_benefits_comment,
+    materialized_benefits, materialized_benefits_comment,
+    
+    # Variable 9
+    negative_impacts, negative_impacts_comment,
+    
+    # Variables 10 and 11
+    promised_compensation,
+    
+    # Variable 11
+    received_compensation,
+    
+    # Variable 12
+    gender_related_information,
+    
+    # Variable 13
+    purchase_price, purchase_price_currency.name, purchase_price_type, purchase_price_area, purchase_price_comment,
+    
+    # Variable 14
+    annual_leasing_fee, annual_leasing_fee_currency.name, annual_leasing_fee_type, annual_leasing_fee_comment,
+    
+    # Variable 15
+    presence_of_organizations,
+    
+    # Variable 16
+    involved_actors
+    
+  ) %>%
+  datatable(fillContainer = TRUE, 
+            options = list(scrollY = "380px")
+            )
+```
+
+## Transparency score
+
+Calculate the transparency score based on the VGGTs variables. The Land Matrix variables taken into account in the VGGTs are the following:
+
+---
+
+# Retention tests
+
+## Deals overview
+
+
+
+- Deal ID
+- Deal country
+- Deal region
+- Transparency score
+- Retention test result
+- Reason for retention test failure
+
+## Countries overview
+
+- Country
+- Region
+- Transparency score
+- Number of deals
+- Number of retained deals
+
+---
+
+# Missing data assessment
+
+Display chapters with missing data (like in the original script).
+Same for articles.
+
+---
