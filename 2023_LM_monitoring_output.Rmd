@@ -71,10 +71,10 @@ filters <- list(
   #list( field = "id", operation = "IN", value = c(14, 15, 16, 18, 20) ),
   
   # Region
-  list( field = "country.region.id", operation = "EQ", value = 2 ),
+  #list( field = "country.region.id", operation = "EQ", value = 142 ),
   
   # Country
-  #list( field = "country.id", operation = "EQ", value = 686 ),
+  list( field = "country.id", operation = "EQ", value = 120 ),
   
   # Deal size → at least 200 ha
   list( field = "deal_size", operation = "GE", value = 200 ),
@@ -219,6 +219,11 @@ result <- conn$exec(query$link, variables = variables) %>%
 # Convert the JSON data into a tibble
 deals_data <- result$data$deals %>%
   as_tibble()
+
+# All empty strings to NA
+deals_data <- deals_data %>%
+  mutate_if(is.character, list(~na_if(.,"")))
+
 deals_data
 
 ```
@@ -259,8 +264,8 @@ deals_data %>%
   select(id, country.name, created_at, modified_at, fully_updated_at) %>%
   mutate(
     created_at = format(as.POSIXct(created_at), format="%Y-%m-%d"),
-    modified_at = format(as.POSIXct(created_at), format="%Y-%m-%d"),
-    fully_updated_at = format(as.POSIXct(created_at), format="%Y-%m-%d"),
+    modified_at = format(as.POSIXct(modified_at), format="%Y-%m-%d"),
+    fully_updated_at = format(as.POSIXct(fully_updated_at), format="%Y-%m-%d"),
   ) %>%
   datatable(fillContainer = TRUE, 
             options = list(scrollY = "380px")
@@ -280,16 +285,17 @@ deals_data %>%
   select(id, country.name, created_at, modified_at, fully_updated, fully_updated_at) %>%
   mutate(
     created_at = format(as.POSIXct(created_at), format="%Y-%m-%d"),
-    modified_at = format(as.POSIXct(created_at), format="%Y-%m-%d"),
-    fully_updated_at = format(as.POSIXct(created_at), format="%Y-%m-%d"),
+    modified_at = format(as.POSIXct(modified_at), format="%Y-%m-%d"),
+    fully_updated_at = format(as.POSIXct(fully_updated_at), format="%Y-%m-%d"),
   ) %>%
   datatable(fillContainer = TRUE, 
             options = list(scrollY = "380px")
             )
 ```
 
-```{r include = TRUE, fig.height=40, fig.width=12}
+```{r include = TRUE, fig.height=4, fig.width=4}
 # fig.height = 10 (regional level) or 24 with 4 columns (global level) or 50 with 4 columns (all countries)
+# fig.width = 12 (down to 4 for one country only)
 
 deals_data %>%
   select(country.name, created_at) %>%
@@ -334,6 +340,8 @@ deals_data %>%
 
 ## NAs
 
+Number of deals assessed: `r nrow(deals_data)`.
+
 ```{r include = TRUE, fig.height = 16, fig.width = 8}
 deals_na <- deals_data %>%
   summarise_all(funs(sum(is.na(.))))
@@ -341,6 +349,7 @@ deals_na <- deals_data %>%
 deals_na <- as.data.frame(t(deals_na))
 
 deals_na %>% 
+  mutate("Percentage of NA" = round(V1/nrow(deals_data)*100, digits = 1)) %>%
   rename("Number of NA" = V1) %>%
   kable()
 
@@ -348,11 +357,11 @@ deals_data %>%
   gg_miss_var(show_pct = TRUE)
 ```
 
-```{r include = TRUE, fig.height = 16, fig.width = 8}
+```{r include = TRUE, fig.height = 6, fig.width = 8}
 
 # Fields 1 to 14
 deals_data %>%
-  select(id,
+  select(
          
      # Variable 1
     recognition_status, recognition_status_comment,
@@ -373,7 +382,7 @@ deals_data %>%
 
 # Fields 15 to 28
 deals_data %>%
-  select(id,
+  select(
 
      # Variable 5
     land_conflicts, land_conflicts_comment,
@@ -393,7 +402,7 @@ deals_data %>%
 
 # Fields 29 to 42
 deals_data %>%
-  select(id,
+  select(
 
     # Variables 10 and 11
     promised_compensation,
@@ -419,7 +428,6 @@ deals_data %>%
     ) %>%
   vis_miss()
 
-```
 ```
 
 ```{r include = FALSE}
@@ -484,13 +492,57 @@ deals_data %>%
 
 Calculate the transparency score based on the VGGTs variables. The Land Matrix variables taken into account in the VGGTs are the following:
 
+- recognition_status
+- recognition_status_comment
+- displacement_of_people
+- displaced_people
+- displaced_households
+- displaced_people_from_community_land
+- displaced_people_within_community_land
+- displaced_households_from_fields
+- displaced_people_on_completion
+- displacement_of_people_comment
+- community_consultation
+- community_consultation_comment
+- community_reaction
+- community_reaction_comment
+- land_conflicts
+- land_conflicts_comment
+- contract_farming
+- on_the_lease_state
+- on_the_lease
+- off_the_lease_state
+- off_the_lease
+- off_the_lease
+- promised_benefits
+- promised_benefits_comment
+- materialized_benefits
+- materialized_benefits_comment
+- negative_impacts
+- negative_impacts_comment
+- promised_compensation
+- received_compensation
+- gender_related_information
+- purchase_price
+- purchase_price_currency
+- purchase_price_type
+- purchase_price_area
+- purchase_price_comment
+- annual_leasing_fee
+- annual_leasing_fee_currency
+- annual_leasing_fee_type
+- annual_leasing_fee_area
+- annual_leasing_fee_comment
+- presence_of_organizations
+- involved_actors
+
 ---
 
 # Retention tests
 
+## Apply the retention tests
+
 ## Deals overview
-
-
 
 - Deal ID
 - Deal country
